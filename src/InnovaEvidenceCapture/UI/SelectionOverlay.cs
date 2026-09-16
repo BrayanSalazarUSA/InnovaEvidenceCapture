@@ -30,16 +30,16 @@ public sealed class SelectionOverlay : Window
     private System.Windows.Point _start;
     private bool _dragging;
     private readonly System.Drawing.Rectangle _virtualScreen = WinForms.SystemInformation.VirtualScreen;
-    private readonly CaptureMode? _directMode;
+    private readonly CaptureKind? _directMode;
 
     public System.Drawing.Rectangle? Region { get; private set; }
-    public CaptureMode Mode { get; private set; } = CaptureMode.Photo;
+    public CaptureKind Mode { get; private set; } = CaptureKind.Photo;
 
     /// <param name="directMode">
     /// Si viene con valor (por ejemplo desde Ctrl+Shift+V) se salta la barra y
     /// devuelve ese modo apenas se suelta el mouse.
     /// </param>
-    public SelectionOverlay(CaptureMode? directMode = null)
+    public SelectionOverlay(CaptureKind? directMode = null)
     {
         _directMode = directMode;
 
@@ -57,7 +57,7 @@ public sealed class SelectionOverlay : Window
         _box.Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(48, 0x3B, 0x9E, 0xF5));
         _box.Visibility = Visibility.Collapsed;
 
-        _hint.Text = directMode == CaptureMode.Video
+        _hint.Text = directMode == CaptureKind.Video
             ? "Arrastra para elegir la region a grabar  ·  Esc para cancelar"
             : "Arrastra para seleccionar la region  ·  Esc para cancelar";
         _hint.Foreground = System.Windows.Media.Brushes.White;
@@ -100,10 +100,10 @@ public sealed class SelectionOverlay : Window
     private Border BuildToolbar()
     {
         var photo = ToolbarButton("📷  Foto", System.Windows.Media.Color.FromRgb(0x2F, 0x7D, 0xE1));
-        photo.Click += (_, _) => Finish(CaptureMode.Photo);
+        photo.Click += (_, _) => Finish(CaptureKind.Photo);
 
         var video = ToolbarButton("⏺  Grabar", System.Windows.Media.Color.FromRgb(0xC0, 0x39, 0x39));
-        video.Click += (_, _) => Finish(CaptureMode.Video);
+        video.Click += (_, _) => Finish(CaptureKind.Video);
 
         var cancel = ToolbarButton("Cancelar", System.Windows.Media.Color.FromRgb(0x3A, 0x3D, 0x44));
         cancel.Click += (_, _) => { Region = null; Close(); };
@@ -262,11 +262,11 @@ public sealed class SelectionOverlay : Window
         if (Region is null) return;
 
         // Atajos para no tener que soltar el teclado.
-        if (e.Key == Key.Enter) Finish(CaptureMode.Photo);
-        else if (e.Key == Key.V) Finish(CaptureMode.Video);
+        if (e.Key == Key.Enter) Finish(CaptureKind.Photo);
+        else if (e.Key == Key.V) Finish(CaptureKind.Video);
     }
 
-    private void Finish(CaptureMode mode)
+    private void Finish(CaptureKind mode)
     {
         Mode = mode;
         Close();

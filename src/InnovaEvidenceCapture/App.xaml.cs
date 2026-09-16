@@ -75,7 +75,7 @@ public partial class App : System.Windows.Application
             () => Dispatcher.Invoke(() => OnCapture(null)));
 
         bool video = _hotkeys.Register(_cfg.HotkeyModifiers, _cfg.HotkeyVideoKey,
-            () => Dispatcher.Invoke(() => OnCapture(CaptureMode.Video)));
+            () => Dispatcher.Invoke(() => OnCapture(CaptureKind.Video)));
 
         if (photo)
         {
@@ -126,7 +126,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add($"Capturar  ({_cfg.HotkeyModifiers}+{_cfg.HotkeyKey})", null,
             (_, _) => Dispatcher.Invoke(() => OnCapture(null)));
         menu.Items.Add($"Grabar video  ({_cfg.HotkeyModifiers}+{_cfg.HotkeyVideoKey})", null,
-            (_, _) => Dispatcher.Invoke(() => OnCapture(CaptureMode.Video)));
+            (_, _) => Dispatcher.Invoke(() => OnCapture(CaptureKind.Video)));
         menu.Items.Add("Mis capturas de hoy", null, (_, _) => Dispatcher.Invoke(ShowCaptures));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add($"Version {Version}").Enabled = false;
@@ -204,7 +204,7 @@ public partial class App : System.Windows.Application
 
     // ------------------------------------------------------------- captura
 
-    private async void OnCapture(CaptureMode? directMode)
+    private async void OnCapture(CaptureKind? directMode)
     {
         if (_busy) return;
         _busy = true;
@@ -220,7 +220,7 @@ public partial class App : System.Windows.Application
             // Dejar que el overlay desaparezca antes de capturar o grabar.
             await Task.Delay(160);
 
-            if (overlay.Mode == CaptureMode.Video) await CaptureVideoAsync(region);
+            if (overlay.Mode == CaptureKind.Video) await CaptureVideoAsync(region);
             else CapturePhoto(region);
         }
         catch (Exception ex)
