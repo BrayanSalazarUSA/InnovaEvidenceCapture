@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -15,15 +16,26 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish single-file exe
+      - name: Compilar ejecutable autocontenido
         run: >
           dotnet publish src/InnovaEvidenceCapture/InnovaEvidenceCapture.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
           -o publish
 
-      - uses: actions/upload-artifact@v4
+      - name: Agregar los scripts de instalacion al paquete
+        shell: pwsh
+        run: |
+          Copy-Item installer/instalar.bat      publish/
+          Copy-Item installer/desinstalar.bat   publish/
+          Copy-Item GUIA-INSTALACION.md         publish/ -ErrorAction SilentlyContinue
+          Get-ChildItem publish | Format-Table Name, Length
+
+      - name: Publicar el paquete
+        uses: actions/upload-artifact@v4
         with:
           name: InnovaEvidenceCapture-win-x64
           path: publish/
