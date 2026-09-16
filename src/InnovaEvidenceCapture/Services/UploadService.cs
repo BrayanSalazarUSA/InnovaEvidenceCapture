@@ -44,6 +44,18 @@ public sealed class UploadService
             fileContent.Headers.ContentType = new MediaTypeHeaderValue(record.MimeType);
             form.Add(fileContent, "file", record.FileName);
 
+            // La miniatura del video la genera esta app al terminar de grabar: el
+            // backend no decodifica video, y sin ella los clips saldrian con un
+            // icono generico en la cuadricula del celular.
+            var thumbnailPath = record.ImagePath + ".thumb.jpg";
+            if (File.Exists(thumbnailPath))
+            {
+                var thumbnailBytes = await File.ReadAllBytesAsync(thumbnailPath);
+                var thumbnailContent = new ByteArrayContent(thumbnailBytes);
+                thumbnailContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+                form.Add(thumbnailContent, "thumbnail", Path.GetFileName(thumbnailPath));
+            }
+
             // Texto plano a proposito: el backend lo recibe con @RequestPart String
             // y Spring solo lo entrega tal cual si la parte NO viene como
             // application/json. Es el mismo patron que usa la app movil.
