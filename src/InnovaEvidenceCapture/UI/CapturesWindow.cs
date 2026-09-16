@@ -7,6 +7,11 @@ using System.Windows.Media.Imaging;
 using InnovaEvidenceCapture.Models;
 using InnovaEvidenceCapture.Services;
 
+// El proyecto usa WPF y WinForms a la vez, asi que System.Drawing entra por los
+// implicit usings y choca con System.Windows.Media: las dos tienen Color. En
+// esta ventana todo es WPF, asi que se fija el alias una vez.
+using Color = System.Windows.Media.Color;
+
 namespace InnovaEvidenceCapture.UI;
 
 /// <summary>
