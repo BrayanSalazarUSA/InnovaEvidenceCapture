@@ -13,7 +13,7 @@ namespace InnovaEvidenceCapture;
 
 public partial class App : System.Windows.Application
 {
-    public const string Version = "0.3.0";
+    public const string Version = "0.3.1";
 
     private static Mutex? _singleInstance;
 
@@ -59,7 +59,7 @@ public partial class App : System.Windows.Application
         _recorder = new VideoRecorder(_cfg);
 
         _queue.Changed += () => Dispatcher.InvokeAsync(() => _capturesWindow?.Refresh());
-        _queue.Notify += (title, text) => Dispatcher.InvokeAsync(() => Balloon(title, text));
+        _queue.Failed += message => Dispatcher.InvokeAsync(() => Notice(message, isError: true));
 
         _store.Cleanup();
 
@@ -81,14 +81,13 @@ public partial class App : System.Windows.Application
         {
             LogService.Info($"Atajos: {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} (capturar), " +
                             $"{_cfg.HotkeyModifiers}+{_cfg.HotkeyVideoKey} (grabar: {(video ? "ok" : "ocupado")})");
-            Balloon("Innova Evidence Capture listo",
-                $"{_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} para capturar. Estacion {_cfg.StationCode}.");
+            Notice($"Listo · {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} para capturar · {_cfg.StationCode}");
         }
         else
         {
             LogService.Warn($"El atajo {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} ya lo usa otro programa.");
-            Balloon("Atajo no disponible",
-                $"Otro programa usa {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey}. Usa el menu del icono o cambialo en appsettings.json.");
+            Notice($"Otro programa usa {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey}. Usa el menu del icono.",
+                isError: true);
         }
     }
 
@@ -98,7 +97,7 @@ public partial class App : System.Windows.Application
         {
             LogService.Error("Excepcion no controlada en la interfaz", args.Exception);
             args.Handled = true;
-            Balloon("Ocurrio un error", "Se registro en el archivo de log. El programa sigue funcionando.");
+            Notice("Ocurrio un error. Quedo en el log; el programa sigue funcionando.", isError: true);
         };
 
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -226,7 +225,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             LogService.Error("Fallo el ciclo de captura", ex);
-            Balloon("Error en la captura", ex.Message);
+            Notice($"Error en la captura: {ex.Message}", isError: true);
         }
         finally
         {
@@ -260,7 +259,7 @@ public partial class App : System.Windows.Application
         var record = NewRecord("IMAGE", "image/png");
         _store.SaveImage(bitmap, record);
 
-        Balloon("Evidencia guardada", $"{record.FileName} · subiendo…");
+        Notice("Evidencia guardada");
         _capturesWindow?.Refresh();
         _queue.Kick();
     }
@@ -270,8 +269,7 @@ public partial class App : System.Windows.Application
         if (!VideoRecorder.IsAvailable)
         {
             LogService.Warn("Se pidio grabar pero no hay ffmpeg.exe junto al programa.");
-            Balloon("Grabacion no disponible",
-                "Falta ffmpeg.exe. Reinstala el paquete completo para poder grabar video.");
+            Notice("Falta ffmpeg.exe: reinstala el paquete completo para grabar video.", isError: true);
             return;
         }
 
@@ -297,7 +295,7 @@ public partial class App : System.Windows.Application
 
         if (!result.Ok || result.VideoPath is null)
         {
-            Balloon("No se pudo grabar", result.Message);
+            Notice($"No se pudo grabar: {result.Message}", isError: true);
             return;
         }
 
@@ -317,7 +315,7 @@ public partial class App : System.Windows.Application
         record.DurationSeconds = result.DurationSeconds;
         _store.SaveVideo(result.VideoPath, result.ThumbnailPath, record);
 
-        Balloon("Grabacion guardada", $"{record.FileName} · {result.DurationSeconds} s · subiendo…");
+        Notice($"Grabacion guardada · {result.DurationSeconds} s");
         _capturesWindow?.Refresh();
         _queue.Kick();
     }
@@ -338,18 +336,11 @@ public partial class App : System.Windows.Application
         try { if (path is not null && File.Exists(path)) File.Delete(path); } catch { }
     }
 
-    private void Balloon(string title, string text)
-    {
-        if (_tray is null) return;
-
-        try
-        {
-            _tray.BalloonTipTitle = title;
-            _tray.BalloonTipText = text;
-            _tray.ShowBalloonTip(4000);
-        }
-        catch { }
-    }
+    /// <summary>
+    /// Aviso corto en la esquina. Ya no usa los globos de Windows: ocupaban
+    /// media pantalla y se quedaban apilados en el centro de notificaciones.
+    /// </summary>
+    private void Notice(string text, bool isError = false) => Toast.Notify(text, isError);
 
     protected override void OnExit(ExitEventArgs e)
     {

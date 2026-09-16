@@ -20,7 +20,7 @@ namespace InnovaEvidenceCapture.UI;
 /// </summary>
 public sealed class PreviewWindow : Window
 {
-    private enum Tool { None, Arrow, Rect, Ellipse }
+    private enum Tool { None, Move, Arrow, Rect, Ellipse }
 
     private sealed record Annotation(Tool Tool, System.Windows.Point A, System.Windows.Point B);
 
@@ -39,6 +39,15 @@ public sealed class PreviewWindow : Window
     private System.Windows.Point _start;
     private bool _drawing;
     private readonly List<UIElement> _liveShapes = new();
+
+    // Arrastre de una marca ya dibujada: indice en _annotations, punto donde se
+    // agarro y como estaba la marca antes de empezar a moverla.
+    private int _movingIndex = -1;
+    private System.Windows.Point _moveOrigin;
+    private Annotation? _moveStart;
+
+    /// <summary>Margen para agarrar el trazo de una marca, en pixeles.</summary>
+    private const double GrabTolerance = 9;
 
     // =====================================================================
     // FOTO
@@ -72,13 +81,14 @@ public sealed class PreviewWindow : Window
 
         tools.Children.Add(new TextBlock
         {
-            Text = "Señalar:",
+            Text = "Señalar:",  // arrastrar una marca ya hecha tambien se puede sin herramienta
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9A, 0x9F, 0xA8)),
             FontSize = 12.5,
             VerticalAlignment = System.Windows.VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0)
         });
 
+        tools.Children.Add(ToolButton("↔  Mover", Tool.Move));
         tools.Children.Add(ToolButton("↗  Flecha", Tool.Arrow));
         tools.Children.Add(ToolButton("▭  Recuadro", Tool.Rect));
         tools.Children.Add(ToolButton("◯  Círculo", Tool.Ellipse));
@@ -303,25 +313,81 @@ public sealed class PreviewWindow : Window
                 ? MarkColor
                 : System.Windows.Media.Color.FromRgb(0x2B, 0x2F, 0x36));
         }
-        _overlay.Cursor = _tool == Tool.None ? Cursors.Arrow : Cursors.Cross;
+        _overlay.Cursor = _tool switch
+        {
+            Tool.None => Cursors.Arrow,
+            Tool.Move => Cursors.Hand,
+            _ => Cursors.Cross
+        };
     }
 
     private void OnDrawDown(object sender, MouseButtonEventArgs e)
     {
-        if (_tool == Tool.None) return;
-        _start = e.GetPosition(_overlay);
+        var point = e.GetPosition(_overlay);
+
+        // Sin herramienta activa, o con "Mover", un clic encima de una marca la
+        // agarra: es lo que uno espera cuando la flecha quedo torcida.
+        if (_tool is Tool.None or Tool.Move)
+        {
+            int index = HitTest(point);
+            if (index < 0) return;
+
+            _movingIndex = index;
+            _moveOrigin = point;
+            _moveStart = _annotations[index];
+            _overlay.Cursor = Cursors.Hand;
+            _overlay.CaptureMouse();
+            return;
+        }
+
+        _start = point;
         _drawing = true;
         _overlay.CaptureMouse();
     }
 
     private void OnDrawMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!_drawing) return;
-        DrawLive(new Annotation(_tool, _start, e.GetPosition(_overlay)));
+        var point = e.GetPosition(_overlay);
+
+        if (_movingIndex >= 0 && _moveStart is { } original)
+        {
+            var (dx, dy) = ClampOffset(original, point.X - _moveOrigin.X, point.Y - _moveOrigin.Y);
+
+            _annotations[_movingIndex] = original with
+            {
+                A = new System.Windows.Point(original.A.X + dx, original.A.Y + dy),
+                B = new System.Windows.Point(original.B.X + dx, original.B.Y + dy)
+            };
+
+            Redraw();
+            return;
+        }
+
+        if (_drawing)
+        {
+            DrawLive(new Annotation(_tool, _start, point));
+            return;
+        }
+
+        // La manito avisa que esa marca se puede arrastrar.
+        if (_tool is Tool.None or Tool.Move)
+        {
+            _overlay.Cursor = HitTest(point) >= 0 || _tool == Tool.Move
+                ? Cursors.Hand
+                : Cursors.Arrow;
+        }
     }
 
     private void OnDrawUp(object sender, MouseButtonEventArgs e)
     {
+        if (_movingIndex >= 0)
+        {
+            _movingIndex = -1;
+            _moveStart = null;
+            _overlay.ReleaseMouseCapture();
+            return;
+        }
+
         if (!_drawing) return;
         _drawing = false;
         _overlay.ReleaseMouseCapture();
@@ -335,6 +401,101 @@ public sealed class PreviewWindow : Window
 
         _annotations.Add(new Annotation(_tool, _start, end));
         Redraw();
+    }
+
+    /// <summary>
+    /// Marca que esta debajo del punto, de la ultima dibujada a la primera. Se
+    /// agarra por el trazo y no por el area: asi un circulo grande no bloquea
+    /// lo que quedo dentro de el.
+    /// </summary>
+    private int HitTest(System.Windows.Point point)
+    {
+        for (int i = _annotations.Count - 1; i >= 0; i--)
+        {
+            if (IsOnStroke(_annotations[i], point)) return i;
+        }
+
+        return -1;
+    }
+
+    private static bool IsOnStroke(Annotation annotation, System.Windows.Point point)
+    {
+        double left = Math.Min(annotation.A.X, annotation.B.X);
+        double top = Math.Min(annotation.A.Y, annotation.B.Y);
+        double width = Math.Abs(annotation.B.X - annotation.A.X);
+        double height = Math.Abs(annotation.B.Y - annotation.A.Y);
+
+        switch (annotation.Tool)
+        {
+            case Tool.Arrow:
+                return DistanceToSegment(point, annotation.A, annotation.B) <= GrabTolerance;
+
+            case Tool.Rect:
+            {
+                var outer = new System.Windows.Rect(
+                    left - GrabTolerance, top - GrabTolerance,
+                    width + 2 * GrabTolerance, height + 2 * GrabTolerance);
+
+                var inner = new System.Windows.Rect(
+                    left + GrabTolerance, top + GrabTolerance,
+                    Math.Max(0, width - 2 * GrabTolerance),
+                    Math.Max(0, height - 2 * GrabTolerance));
+
+                return outer.Contains(point) && !inner.Contains(point);
+            }
+
+            case Tool.Ellipse:
+            {
+                double rx = width / 2;
+                double ry = height / 2;
+                if (rx < 1 || ry < 1) return false;
+
+                double nx = (point.X - (left + rx)) / rx;
+                double ny = (point.Y - (top + ry)) / ry;
+
+                // Distancia aproximada al trazo, llevada de vuelta a pixeles.
+                double radial = Math.Sqrt(nx * nx + ny * ny);
+                return Math.Abs(radial - 1) * Math.Min(rx, ry) <= GrabTolerance;
+            }
+        }
+
+        return false;
+    }
+
+    private static double DistanceToSegment(
+        System.Windows.Point point, System.Windows.Point a, System.Windows.Point b)
+    {
+        double dx = b.X - a.X;
+        double dy = b.Y - a.Y;
+        double lengthSquared = dx * dx + dy * dy;
+
+        if (lengthSquared < 0.0001) return (point - a).Length;
+
+        double t = Math.Clamp(((point.X - a.X) * dx + (point.Y - a.Y) * dy) / lengthSquared, 0, 1);
+        var projection = new System.Windows.Point(a.X + t * dx, a.Y + t * dy);
+        return (point - projection).Length;
+    }
+
+    /// <summary>
+    /// No deja sacar la marca fuera de la imagen: lo que no se ve aqui tampoco
+    /// se quema en el archivo.
+    /// </summary>
+    private (double Dx, double Dy) ClampOffset(Annotation annotation, double dx, double dy)
+    {
+        double stageWidth = _overlay.ActualWidth;
+        double stageHeight = _overlay.ActualHeight;
+        if (stageWidth <= 0 || stageHeight <= 0) return (dx, dy);
+
+        double left = Math.Min(annotation.A.X, annotation.B.X);
+        double top = Math.Min(annotation.A.Y, annotation.B.Y);
+        double right = Math.Max(annotation.A.X, annotation.B.X);
+        double bottom = Math.Max(annotation.A.Y, annotation.B.Y);
+
+        return (Clamp(dx, -left, stageWidth - right), Clamp(dy, -top, stageHeight - bottom));
+
+        // Si la marca es mas grande que la imagen no hay margen que respetar.
+        static double Clamp(double value, double min, double max) =>
+            min > max ? 0 : Math.Clamp(value, min, max);
     }
 
     private void ClearLive()

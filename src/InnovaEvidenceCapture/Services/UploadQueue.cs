@@ -25,8 +25,15 @@ public sealed class UploadQueue : IDisposable
     /// <summary>Se dispara cuando algo cambio y la ventana deberia refrescarse.</summary>
     public event Action? Changed;
 
-    /// <summary>Notifica al usuario (globo de la bandeja).</summary>
-    public event Action<string, string>? Notify;
+    /// <summary>
+    /// Avisa cuando una captura lleva varios intentos fallidos. Las subidas que
+    /// salen bien no avisan nada: el agente no necesita un cartel por archivo,
+    /// el estado ya se ve en "Mis capturas de hoy".
+    /// </summary>
+    public event Action<string>? Failed;
+
+    /// <summary>Intentos antes de molestar al agente con el error.</summary>
+    private const int AttemptsBeforeWarning = 3;
 
     public UploadQueue(CaptureStore store, UploadService upload)
     {
@@ -62,12 +69,19 @@ public sealed class UploadQueue : IDisposable
                     record.ServerCaptureId = result.ServerCaptureId;
                     record.LastError = null;
                     LogService.Info($"Subida OK: {record.FileName} (id servidor {result.ServerCaptureId})");
-                    Notify?.Invoke("Evidencia disponible", $"{record.FileName} ya aparece en la app movil.");
                 }
                 else
                 {
                     record.LastError = result.Message;
                     LogService.Warn($"Subida fallida ({record.UploadAttempts}): {record.FileName} :: {result.Message}");
+
+                    // Un solo aviso por captura: al llegar al tercer intento.
+                    // Sigue reintentando sola, pero si el problema es la red o
+                    // el backend el agente tiene que enterarse.
+                    if (record.UploadAttempts == AttemptsBeforeWarning)
+                    {
+                        Failed?.Invoke($"No se pudo subir una evidencia: {result.Message}");
+                    }
                 }
 
                 _store.Update(record);
