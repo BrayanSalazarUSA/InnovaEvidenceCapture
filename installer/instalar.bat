@@ -43,6 +43,15 @@ if not exist "%DEST%" mkdir "%DEST%"
 copy /Y "%SRC%InnovaEvidenceCapture.exe" "%DEST%\" >nul
 if %errorlevel% neq 0 goto :copyfail
 
+rem ffmpeg es lo que graba el video. Sin el, la captura de imagen funciona
+rem igual pero el boton de grabar avisa que no esta disponible.
+if exist "%SRC%ffmpeg.exe" (
+  copy /Y "%SRC%ffmpeg.exe" "%DEST%\" >nul
+  echo        ffmpeg instalado, grabacion de video habilitada.
+) else (
+  echo        ATENCION: no se encontro ffmpeg.exe, no se podra grabar video.
+)
+
 rem La configuracion existente NO se pisa: cada PC puede tener la suya.
 if not exist "%DEST%\appsettings.json" (
   copy /Y "%SRC%appsettings.json" "%DEST%\" >nul
@@ -78,8 +87,9 @@ echo  ============================================
 echo   Instalacion terminada.
 echo  ============================================
 echo.
-echo   - El icono aparece junto al reloj, abajo a la derecha.
-echo   - Atajo para capturar: Ctrl + Shift + I
+echo   - El icono aparece junto al reloj. Un clic abre el menu.
+echo   - Ctrl + Shift + I  capturar (elige foto o video al soltar)
+echo   - Ctrl + Shift + V  ir directo a grabar video
 echo   - Las evidencias quedan en: %EVID%\captures
 echo   - Arranca solo cada vez que se inicia sesion.
 echo.

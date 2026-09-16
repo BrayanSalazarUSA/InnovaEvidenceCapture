@@ -14,6 +14,10 @@ public class AppConfig
     [JsonPropertyName("uploadEnabled")] public bool UploadEnabled { get; set; } = true;
     [JsonPropertyName("hotkeyModifiers")] public string HotkeyModifiers { get; set; } = "Ctrl+Shift";
     [JsonPropertyName("hotkeyKey")] public string HotkeyKey { get; set; } = "I";
+    /// <summary>Atajo que va directo a grabar, sin pasar por la barra de eleccion.</summary>
+    [JsonPropertyName("hotkeyVideoKey")] public string HotkeyVideoKey { get; set; } = "V";
+    [JsonPropertyName("videoMaxSeconds")] public int VideoMaxSeconds { get; set; } = 60;
+    [JsonPropertyName("videoFps")] public int VideoFps { get; set; } = 15;
 
     public static AppConfig Load()
     {

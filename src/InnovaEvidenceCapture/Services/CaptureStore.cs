@@ -7,28 +7,78 @@ using InnovaEvidenceCapture.Models;
 namespace InnovaEvidenceCapture.Services;
 
 /// <summary>
-/// Las capturas en el disco del PC y su estado. Cada .png tiene al lado un
-/// .json con lo que sabemos de el.
+/// Las capturas en el disco del PC y su estado. Cada archivo tiene al lado un
+/// .json (oculto) con lo que sabemos de el.
 /// </summary>
 public sealed class CaptureStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly AppConfig _cfg;
 
     public CaptureStore(AppConfig cfg) => _cfg = cfg;
 
-    public string CapturesRoot => Path.Combine(_cfg.CaptureRoot, "captures");
+    /// <summary>
+    /// Incluye el nombre del PC aunque cada maquina solo guarde lo suyo: si
+    /// alguien copia archivos entre PCs, el origen queda claro sin abrir nada.
+    /// </summary>
+    public string CapturesRoot => Path.Combine(_cfg.CaptureRoot, "captures", Sanitize(_cfg.StationCode));
 
-    public string FolderFor(DateTime when) =>
-        Path.Combine(CapturesRoot, when.ToString("yyyy-MM-dd"));
+    public string FolderFor(DateTime when) => Path.Combine(CapturesRoot, when.ToString("yyyy-MM-dd"));
+
+    public string TempFolder
+    {
+        get
+        {
+            var path = Path.Combine(_cfg.CaptureRoot, "temp");
+            Directory.CreateDirectory(path);
+            return path;
+        }
+    }
 
     // ------------------------------------------------------------- guardar
 
-    public CaptureRecord Save(Bitmap bitmap, CaptureRecord record)
+    public CaptureRecord SaveImage(Bitmap bitmap, CaptureRecord record)
+    {
+        var target = PrepareTarget(record, "png");
+
+        bitmap.Save(target, ImageFormat.Png);
+
+        record.Width = bitmap.Width;
+        record.Height = bitmap.Height;
+        record.SizeBytes = new FileInfo(target).Length;
+        record.CaptureType = "IMAGE";
+        record.MimeType = "image/png";
+
+        Update(record);
+        LogService.Info($"Captura guardada: {record.FileName} ({record.Width}x{record.Height}, {Kb(record.SizeBytes)})");
+        return record;
+    }
+
+    /// <summary>Mueve el clip recien grabado a la carpeta del dia.</summary>
+    public CaptureRecord SaveVideo(string tempVideoPath, string? tempThumbPath, CaptureRecord record)
+    {
+        var target = PrepareTarget(record, "mp4");
+
+        File.Move(tempVideoPath, target, overwrite: true);
+
+        if (tempThumbPath is not null && File.Exists(tempThumbPath))
+        {
+            var thumb = target + ".thumb.jpg";
+            File.Move(tempThumbPath, thumb, overwrite: true);
+            Hide(thumb);
+        }
+
+        record.SizeBytes = new FileInfo(target).Length;
+        record.CaptureType = "VIDEO";
+        record.MimeType = "video/mp4";
+
+        Update(record);
+        LogService.Info($"Video guardado: {record.FileName} ({record.DurationSeconds ?? 0} s, {Kb(record.SizeBytes)})");
+        return record;
+    }
+
+    private string PrepareTarget(CaptureRecord record, string extension)
     {
         var folder = FolderFor(record.CapturedAt);
         Directory.CreateDirectory(folder);
@@ -37,19 +87,9 @@ public sealed class CaptureStore
             ? record.ClientCaptureId.Substring(0, 4)
             : Guid.NewGuid().ToString("N").Substring(0, 4);
 
-        record.FileName = $"{record.CapturedAt:HHmmss}_{shortId}.png";
+        record.FileName = $"{record.CapturedAt:HHmmss}_{shortId}.{extension}";
         record.ImagePath = Path.Combine(folder, record.FileName);
-
-        bitmap.Save(record.ImagePath, ImageFormat.Png);
-
-        record.Width = bitmap.Width;
-        record.Height = bitmap.Height;
-        record.SizeBytes = new FileInfo(record.ImagePath).Length;
-
-        Update(record);
-        LogService.Info($"Captura guardada: {record.FileName} ({record.Width}x{record.Height}, {record.SizeBytes} bytes)");
-
-        return record;
+        return record.ImagePath;
     }
 
     public void Update(CaptureRecord record)
@@ -59,7 +99,12 @@ public sealed class CaptureStore
         record.UpdatedAt = DateTime.Now;
         try
         {
+            // Se quita el atributo oculto para poder reescribirlo y se vuelve a poner.
+            if (File.Exists(record.SidecarPath))
+                File.SetAttributes(record.SidecarPath, FileAttributes.Normal);
+
             File.WriteAllText(record.SidecarPath, JsonSerializer.Serialize(record, JsonOptions));
+            Hide(record.SidecarPath);
         }
         catch (Exception ex)
         {
@@ -67,12 +112,16 @@ public sealed class CaptureStore
         }
     }
 
+    /// <summary>El agente no tiene por que ver los archivos de estado.</summary>
+    private static void Hide(string path)
+    {
+        try { File.SetAttributes(path, FileAttributes.Hidden); } catch { }
+    }
+
     // ------------------------------------------------------------- leer
 
-    /// <summary>Capturas de hoy, la mas reciente primero.</summary>
     public List<CaptureRecord> LoadToday() => LoadSince(DateTime.Today);
 
-    /// <summary>Todo lo que siga pendiente de subir, sin importar el dia.</summary>
     public List<CaptureRecord> LoadPending() =>
         LoadSince(DateTime.Today.AddDays(-14)).Where(r => !r.Uploaded).ToList();
 
@@ -86,9 +135,12 @@ public sealed class CaptureStore
             if (!DateTime.TryParse(Path.GetFileName(folder), out var day)) continue;
             if (day.Date < since.Date) continue;
 
-            foreach (var png in Directory.EnumerateFiles(folder, "*.png"))
+            foreach (var file in Directory.EnumerateFiles(folder))
             {
-                var record = LoadOne(png);
+                var extension = Path.GetExtension(file).ToLowerInvariant();
+                if (extension != ".png" && extension != ".mp4") continue;
+
+                var record = LoadOne(file);
                 if (record is not null) results.Add(record);
             }
         }
@@ -96,9 +148,9 @@ public sealed class CaptureStore
         return results.OrderByDescending(r => r.CapturedAt).ToList();
     }
 
-    private CaptureRecord? LoadOne(string imagePath)
+    private CaptureRecord? LoadOne(string filePath)
     {
-        var sidecar = Path.ChangeExtension(imagePath, ".json");
+        var sidecar = Path.ChangeExtension(filePath, ".json");
 
         try
         {
@@ -107,9 +159,9 @@ public sealed class CaptureStore
                 var record = JsonSerializer.Deserialize<CaptureRecord>(File.ReadAllText(sidecar));
                 if (record is not null)
                 {
-                    record.ImagePath = imagePath;
+                    record.ImagePath = filePath;
                     if (string.IsNullOrEmpty(record.FileName))
-                        record.FileName = Path.GetFileName(imagePath);
+                        record.FileName = Path.GetFileName(filePath);
                     return record;
                 }
             }
@@ -119,18 +171,22 @@ public sealed class CaptureStore
             LogService.Warn($"Estado ilegible en {Path.GetFileName(sidecar)}: {ex.Message}");
         }
 
-        // Sin sidecar legible: se muestra igual como pendiente, para que ninguna
-        // captura quede invisible para el agente.
-        var info = new FileInfo(imagePath);
+        // Sin sidecar legible se muestra igual como pendiente: ninguna captura
+        // puede quedar invisible para el agente.
+        var info = new FileInfo(filePath);
+        bool isVideo = info.Extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase);
+
         return new CaptureRecord
         {
             ClientCaptureId = Guid.NewGuid().ToString("N").Substring(0, 12),
             FileName = info.Name,
-            ImagePath = imagePath,
+            ImagePath = filePath,
             CapturedAt = info.CreationTime,
             SizeBytes = info.Length,
             StationCode = _cfg.StationCode,
             StationName = _cfg.StationName,
+            CaptureType = isVideo ? "VIDEO" : "IMAGE",
+            MimeType = isVideo ? "video/mp4" : "image/png",
             Uploaded = false,
             LastError = "Sin registro de estado"
         };
@@ -140,13 +196,13 @@ public sealed class CaptureStore
 
     /// <summary>
     /// Borra capturas viejas SOLO si ya se subieron. Lo que no llego al servidor
-    /// no se toca nunca, asi un corte de internet no se traduce en evidencia
-    /// perdida.
+    /// no se toca nunca.
     /// </summary>
     public void Cleanup()
     {
         try
         {
+            CleanTemp();
             if (!Directory.Exists(CapturesRoot)) return;
 
             var cutoff = DateTime.Now.AddHours(-_cfg.RetentionHours);
@@ -159,8 +215,9 @@ public sealed class CaptureStore
 
                 try
                 {
-                    File.Delete(record.ImagePath);
-                    if (File.Exists(record.SidecarPath)) File.Delete(record.SidecarPath);
+                    Delete(record.ImagePath);
+                    Delete(record.SidecarPath);
+                    Delete(record.ImagePath + ".thumb.jpg");
                     removed++;
                 }
                 catch (Exception ex)
@@ -182,5 +239,36 @@ public sealed class CaptureStore
         {
             LogService.Error("Fallo la limpieza de capturas viejas", ex);
         }
+    }
+
+    /// <summary>Restos de grabaciones que quedaron a medias.</summary>
+    private void CleanTemp()
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(TempFolder))
+            {
+                if (File.GetCreationTime(file) < DateTime.Now.AddHours(-6)) File.Delete(file);
+            }
+        }
+        catch { }
+    }
+
+    private static void Delete(string path)
+    {
+        if (!File.Exists(path)) return;
+        File.SetAttributes(path, FileAttributes.Normal);
+        File.Delete(path);
+    }
+
+    private static string Kb(long bytes) =>
+        bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} MB" : $"{bytes / 1024d:0} KB";
+
+    private static string Sanitize(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "SIN-ESTACION";
+        var clean = value.Trim().Replace(" ", "_");
+        foreach (var c in Path.GetInvalidFileNameChars()) clean = clean.Replace(c, '_');
+        return string.IsNullOrWhiteSpace(clean) ? "SIN-ESTACION" : clean;
     }
 }

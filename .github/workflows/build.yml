@@ -26,6 +26,21 @@ jobs:
           -p:DebugSymbols=false
           -o publish
 
+      # ffmpeg graba la pantalla y produce el MP4 ya listo para reproducir.
+      # Se descarga aqui en vez de versionarlo: son ~80 MB de binario que no
+      # tienen por que vivir en el repositorio.
+      - name: Descargar ffmpeg
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Write-Host "Descargando $url"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip -UseBasicParsing
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg-tmp -Force
+          $exe = Get-ChildItem ffmpeg-tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          if (-not $exe) { throw "No se encontro ffmpeg.exe dentro del zip" }
+          Copy-Item $exe.FullName publish/ffmpeg.exe
+          Write-Host "ffmpeg listo: $([math]::Round((Get-Item publish/ffmpeg.exe).Length / 1MB, 1)) MB"
+
       - name: Agregar los scripts de instalacion al paquete
         shell: pwsh
         run: |

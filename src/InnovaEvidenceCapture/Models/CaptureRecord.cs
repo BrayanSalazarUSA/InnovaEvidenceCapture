@@ -30,6 +30,8 @@ public class CaptureRecord
     public int Width { get; set; }
     public int Height { get; set; }
     public long SizeBytes { get; set; }
+    /// <summary>Solo en video. Null en las imagenes.</summary>
+    public int? DurationSeconds { get; set; }
 
     public string WindowsUser { get; set; } = Environment.UserName;
     public string AppVersion { get; set; } = "0.2.0";
@@ -53,6 +55,9 @@ public class CaptureRecord
     public CaptureState State => Linked ? CaptureState.Linked
                                : Uploaded ? CaptureState.Uploaded
                                : CaptureState.Pending;
+
+    [JsonIgnore]
+    public bool IsVideo => string.Equals(CaptureType, "VIDEO", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
     public string StateLabel => State switch

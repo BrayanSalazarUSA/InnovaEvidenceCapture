@@ -295,7 +295,9 @@ public sealed class CapturesWindow : Window
             ClipToBounds = true
         };
 
-        var source = LoadThumbnail(record.ImagePath, (int)CardWidth);
+        bool isVideo = string.Equals(record.CaptureType, "VIDEO", StringComparison.OrdinalIgnoreCase);
+        var thumbPath = isVideo ? record.ImagePath + ".thumb.jpg" : record.ImagePath;
+        var source = LoadThumbnail(thumbPath, (int)CardWidth);
         if (source is not null)
         {
             thumbHost.Child = new System.Windows.Controls.Image
@@ -308,13 +310,44 @@ public sealed class CapturesWindow : Window
         {
             thumbHost.Child = new TextBlock
             {
-                Text = "sin vista previa",
+                Text = isVideo ? "▶" : "sin vista previa",
+                FontSize = isVideo ? 40 : 11,
                 Foreground = new SolidColorBrush(Muted),
-                FontSize = 11,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center
             };
         }
+
+        if (isVideo && source is not null)
+        {
+            // Sobre la miniatura, para que se distinga de una foto de un vistazo.
+            // Hay que desprender el hijo antes de reubicarlo: WPF no permite que
+            // un elemento tenga dos padres.
+            var inner = thumbHost.Child;
+            thumbHost.Child = null;
+
+            var overlay = new Grid();
+            if (inner is not null) overlay.Children.Add(inner);
+            overlay.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, 0, 0, 0)),
+                CornerRadius = new CornerRadius(20),
+                Width = 40,
+                Height = 40,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = "▶",
+                    FontSize = 19,
+                    Foreground = System.Windows.Media.Brushes.White,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center
+                }
+            });
+            thumbHost.Child = overlay;
+        }
+
         content.Children.Add(thumbHost);
 
         // Datos
@@ -338,9 +371,13 @@ public sealed class CapturesWindow : Window
         });
         body.Children.Add(stateRow);
 
+        string details = isVideo
+            ? $"{record.CapturedAt:HH:mm}  ·  {record.DurationSeconds ?? 0} s  ·  {FormatSize(record.SizeBytes)}"
+            : $"{record.CapturedAt:HH:mm}  ·  {record.Width}×{record.Height}  ·  {FormatSize(record.SizeBytes)}";
+
         body.Children.Add(new TextBlock
         {
-            Text = $"{record.CapturedAt:HH:mm}  ·  {record.Width}×{record.Height}  ·  {FormatSize(record.SizeBytes)}",
+            Text = details,
             Foreground = new SolidColorBrush(Muted),
             FontSize = 11.5,
             Margin = new Thickness(0, 5, 0, 0)
@@ -365,10 +402,11 @@ public sealed class CapturesWindow : Window
             Margin = new Thickness(0, 10, 0, 0)
         };
 
-        var copy = Button("Copiar", Line);
+        var copy = Button(isVideo ? "Reproducir" : "Copiar", Line);
         copy.FontSize = 11.5;
         copy.Padding = new Thickness(10, 5, 10, 5);
-        copy.Click += (_, _) => CopyToClipboard(record);
+        if (isVideo) copy.Click += (_, _) => OpenFile(record.ImagePath);
+        else copy.Click += (_, _) => CopyToClipboard(record);
 
         var open = Button("Abrir", Line);
         open.FontSize = 11.5;
@@ -428,6 +466,19 @@ public sealed class CapturesWindow : Window
             LogService.Error($"No se pudo copiar {record.FileName}", ex);
             System.Windows.MessageBox.Show("No se pudo copiar la imagen al portapapeles.",
                 "Innova Evidence Capture", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private static void OpenFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            LogService.Warn($"No se pudo abrir {path}: {ex.Message}");
         }
     }
 

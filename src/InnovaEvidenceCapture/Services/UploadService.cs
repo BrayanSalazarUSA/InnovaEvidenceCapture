@@ -101,6 +101,7 @@ public sealed class UploadService
             ["height"] = record.Height,
             ["sizeBytes"] = record.SizeBytes,
             ["mimeType"] = record.MimeType,
+            ["durationSeconds"] = record.DurationSeconds,
             ["windowsUser"] = record.WindowsUser,
             ["appVersion"] = record.AppVersion
         };
