@@ -4,9 +4,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using WinForms = System.Windows.Forms;
 
-// WinForms entra por los implicit usings (lo usamos solo para el icono de la
-// bandeja) y varios de sus tipos se llaman igual que los de WPF. Este overlay es
-// todo WPF, asi que se fijan los aliases una vez.
+// Este overlay es todo WPF. Los aliases dejan explicito cual de los dos mundos
+// se usa, porque WinForms tiene tipos con exactamente los mismos nombres.
 using Cursors = System.Windows.Input.Cursors;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;

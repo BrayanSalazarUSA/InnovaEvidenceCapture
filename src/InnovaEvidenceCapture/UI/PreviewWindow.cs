@@ -61,7 +61,7 @@ public sealed class PreviewWindow : Window
         {
             Text = $"{bitmap.Width} × {bitmap.Height} px",
             Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9A, 0x9F, 0xA8)),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = System.Windows.VerticalAlignment.Center
         };
 
         var discard = MakeButton("Descartar", 0x3A, 0x3D, 0x44);

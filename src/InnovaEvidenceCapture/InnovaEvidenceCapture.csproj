@@ -28,6 +28,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      WinForms se usa SOLO para el icono de la bandeja, pero sus usings
+      implicitos meten System.Windows.Forms y System.Drawing en todos los
+      archivos y chocan con WPF: Color, Orientation, Clipboard, MessageBox,
+      HorizontalAlignment y MouseEventArgs existen en ambos mundos.
+      Se quitan del global y cada archivo importa lo que de verdad necesita.
+    -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Embebido para que el icono de la bandeja no dependa de archivos sueltos -->
     <EmbeddedResource Include="assets\app.ico" />
   </ItemGroup>

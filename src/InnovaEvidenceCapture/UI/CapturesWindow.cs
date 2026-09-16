@@ -7,9 +7,8 @@ using System.Windows.Media.Imaging;
 using InnovaEvidenceCapture.Models;
 using InnovaEvidenceCapture.Services;
 
-// El proyecto usa WPF y WinForms a la vez, asi que System.Drawing entra por los
-// implicit usings y choca con System.Windows.Media: las dos tienen Color. En
-// esta ventana todo es WPF, asi que se fija el alias una vez.
+// Esta ventana es toda WPF. El alias deja explicito que Color es el de WPF y no
+// el de System.Drawing, que tiene el mismo nombre.
 using Color = System.Windows.Media.Color;
 
 namespace InnovaEvidenceCapture.UI;
@@ -104,7 +103,7 @@ public sealed class CapturesWindow : Window
         // Barra de acciones
         var toolbar = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
             Margin = new Thickness(0, 14, 0, 12)
         };
 
@@ -132,7 +131,7 @@ public sealed class CapturesWindow : Window
         root.Children.Add(toolbar);
 
         // Cuadricula
-        _grid.Orientation = Orientation.Horizontal;
+        _grid.Orientation = System.Windows.Controls.Orientation.Horizontal;
 
         _empty.Foreground = new SolidColorBrush(Muted);
         _empty.FontSize = 14;
@@ -160,7 +159,7 @@ public sealed class CapturesWindow : Window
         // Leyenda
         var legend = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
             Margin = new Thickness(0, 14, 0, 0)
         };
         legend.Children.Add(LegendItem(DotPending, "Pendiente de subir"));
@@ -189,7 +188,7 @@ public sealed class CapturesWindow : Window
     {
         var panel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
             Margin = new Thickness(0, 0, 20, 0)
         };
         panel.Children.Add(Dot(color));
@@ -199,7 +198,7 @@ public sealed class CapturesWindow : Window
             Foreground = new SolidColorBrush(Muted),
             FontSize = 11.5,
             Margin = new Thickness(6, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = System.Windows.VerticalAlignment.Center
         });
         return panel;
     }
@@ -209,7 +208,7 @@ public sealed class CapturesWindow : Window
         Width = 9,
         Height = 9,
         Fill = new SolidColorBrush(color),
-        VerticalAlignment = VerticalAlignment.Center
+        VerticalAlignment = System.Windows.VerticalAlignment.Center
     };
 
     private static System.Windows.Controls.Button Button(string text, Color background, bool primary = false) => new()
@@ -312,8 +311,8 @@ public sealed class CapturesWindow : Window
                 Text = "sin vista previa",
                 Foreground = new SolidColorBrush(Muted),
                 FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center
             };
         }
         content.Children.Add(thumbHost);
@@ -321,7 +320,7 @@ public sealed class CapturesWindow : Window
         // Datos
         var body = new StackPanel { Margin = new Thickness(12, 10, 12, 12) };
 
-        var stateRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var stateRow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
         stateRow.Children.Add(Dot(record.State switch
         {
             CaptureState.Linked => DotLinked,
@@ -335,7 +334,7 @@ public sealed class CapturesWindow : Window
             FontSize = 12.5,
             FontWeight = FontWeights.Medium,
             Margin = new Thickness(7, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = System.Windows.VerticalAlignment.Center
         });
         body.Children.Add(stateRow);
 
@@ -362,7 +361,7 @@ public sealed class CapturesWindow : Window
 
         var actions = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
             Margin = new Thickness(0, 10, 0, 0)
         };
 
@@ -421,13 +420,13 @@ public sealed class CapturesWindow : Window
             image.EndInit();
             image.Freeze();
 
-            Clipboard.SetImage(image);
+            System.Windows.Clipboard.SetImage(image);
             LogService.Info($"Copiada al portapapeles: {record.FileName}");
         }
         catch (Exception ex)
         {
             LogService.Error($"No se pudo copiar {record.FileName}", ex);
-            MessageBox.Show("No se pudo copiar la imagen al portapapeles.",
+            System.Windows.MessageBox.Show("No se pudo copiar la imagen al portapapeles.",
                 "Innova Evidence Capture", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
