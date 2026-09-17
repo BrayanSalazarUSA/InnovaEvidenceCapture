@@ -120,6 +120,19 @@ En "Mis capturas de hoy", cada evidencia tiene un punto de color:
 | `retentionHours` | Horas que las capturas se quedan en el PC **después de subirse** |
 | `hotkeyKey` / `hotkeyVideoKey` | Las teclas de los atajos, si chocan con otro programa |
 
+### Cambiar los ajustes desde el programa
+
+Clic en el icono junto al reloj > **Ajustes...**. Desde ahi se cambia el codigo
+de la estacion y los dos atajos, sin tocar ningun archivo. Para elegir el atajo
+se hace clic en el recuadro y se presiona la tecla: el programa la reconoce
+sola.
+
+Lo que se cambia ahi se guarda en `%ProgramData%\Innova Evidence Capture\config.json`,
+no en Program Files, porque el agente no tiene permiso de escritura ahi. El
+`appsettings.json` que reparte el instalador queda como los valores de fabrica.
+
+Los atajos se vuelven a registrar al guardar, sin reiniciar el programa.
+
 ### Atajo de una sola tecla
 
 En una sala de monitoreo buscar `Ctrl+Shift+I` a oscuras cuesta segundos. Se

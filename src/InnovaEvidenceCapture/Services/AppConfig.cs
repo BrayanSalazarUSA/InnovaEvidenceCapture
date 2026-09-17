@@ -29,9 +29,25 @@ public class AppConfig
     [JsonPropertyName("videoMaxSeconds")] public int VideoMaxSeconds { get; set; } = 60;
     [JsonPropertyName("videoFps")] public int VideoFps { get; set; } = 15;
 
+    /// <summary>
+    /// Donde se guarda lo que el agente cambia desde la ventana de ajustes.
+    ///
+    /// No puede ser el appsettings.json de Program Files: ahi solo escribe un
+    /// administrador, y el agente de monitoreo no lo es. Ese archivo queda como
+    /// los valores de fabrica que reparte el instalador, y este de ProgramData
+    /// los pisa.
+    /// </summary>
+    public static string UserConfigPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "Innova Evidence Capture",
+        "config.json");
+
+    private static string DefaultsPath =>
+        Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+
     public static AppConfig Load()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        var path = File.Exists(UserConfigPath) ? UserConfigPath : DefaultsPath;
         AppConfig cfg;
         try
         {
@@ -50,5 +66,32 @@ public class AppConfig
             cfg.StationName = cfg.StationCode;
 
         return cfg;
+    }
+
+    /// <summary>
+    /// Guarda los ajustes. Devuelve el error si no pudo, para poder decirselo
+    /// al agente en vez de fingir que se guardo.
+    /// </summary>
+    public string? Save()
+    {
+        try
+        {
+            var folder = Path.GetDirectoryName(UserConfigPath)!;
+            Directory.CreateDirectory(folder);
+
+            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            File.WriteAllText(UserConfigPath, json);
+            LogService.Info($"Ajustes guardados en {UserConfigPath}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("No se pudieron guardar los ajustes", ex);
+            return ex.Message;
+        }
     }
 }

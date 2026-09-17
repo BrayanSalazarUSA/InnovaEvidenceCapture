@@ -128,6 +128,7 @@ public partial class App : System.Windows.Application
             (_, _) => Dispatcher.Invoke(() => OnCapture(CaptureKind.Video)));
         menu.Items.Add("Mis capturas de hoy", null, (_, _) => Dispatcher.Invoke(ShowCaptures));
         menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add("Ajustes...", null, (_, _) => Dispatcher.Invoke(ShowSettings));
         menu.Items.Add($"Version {Version}").Enabled = false;
         menu.Items.Add("Salir", null, (_, _) => Shutdown());
 
@@ -199,6 +200,33 @@ public partial class App : System.Windows.Application
         var window = new CapturesWindow(_cfg, _store, _queue);
         window.CaptureRequested += () => Dispatcher.InvokeAsync(() => OnCapture(null));
         return window;
+    }
+
+    /// <summary>
+    /// Ajustes de la estacion. Al guardar se vuelven a registrar los atajos sin
+    /// reiniciar: el agente cambia la tecla y la prueba en el momento.
+    /// </summary>
+    private void ShowSettings()
+    {
+        var window = new SettingsWindow(_cfg);
+        window.ShowDialog();
+
+        if (!window.Saved) return;
+
+        _hotkeys?.Dispose();
+        _hotkeys = null;
+        RegisterHotkeys();
+
+        // El menu muestra la estacion y los atajos, hay que rehacerlo.
+        if (_tray is not null)
+        {
+            _tray.Visible = false;
+            _tray.Dispose();
+            _tray = null;
+        }
+        BuildTray();
+
+        _capturesWindow?.Refresh();
     }
 
     // ------------------------------------------------------------- captura

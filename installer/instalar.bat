@@ -22,6 +22,7 @@ if %errorlevel% neq 0 (
 set "SRC=%~dp0"
 set "DEST=%ProgramFiles%\Innova Evidence Capture"
 set "EVID=C:\InnovaEvidence"
+set "AJUSTES=%ProgramData%\Innova Evidence Capture"
 set "STARTUP=%ProgramData%\Microsoft\Windows\Start Menu\Programs\StartUp"
 set "STARTMENU=%ProgramData%\Microsoft\Windows\Start Menu\Programs"
 
@@ -66,6 +67,11 @@ if not exist "%EVID%" mkdir "%EVID%"
 rem S-1-5-32-545 = grupo Usuarios, funciona en Windows en cualquier idioma.
 icacls "%EVID%" /grant *S-1-5-32-545:(OI)(CI)M /T >nul 2>&1
 
+rem Aqui guarda el agente lo que cambia desde "Ajustes". No puede ser la
+rem carpeta de Program Files: ahi solo escribe un administrador.
+if not exist "%AJUSTES%" mkdir "%AJUSTES%"
+icacls "%AJUSTES%" /grant *S-1-5-32-545:(OI)(CI)M /T >nul 2>&1
+
 echo  [4/5] Configurando el arranque automatico...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$w = New-Object -ComObject WScript.Shell;" ^
@@ -90,6 +96,8 @@ echo.
 echo   - El icono aparece junto al reloj. Un clic abre el menu.
 echo   - Ctrl + Shift + I  capturar (elige foto o video al soltar)
 echo   - Ctrl + Shift + V  ir directo a grabar video
+echo   - Los atajos y el codigo de la estacion se cambian desde
+echo     el menu del icono, en "Ajustes...". No hay que editar archivos.
 echo   - Las evidencias quedan en: %EVID%\captures
 echo   - Arranca solo cada vez que se inicia sesion.
 echo.
