@@ -63,8 +63,8 @@ public sealed class HotkeyService : IDisposable
             }
         }
 
-        if (string.IsNullOrWhiteSpace(key)) return false;
-        uint vk = char.ToUpperInvariant(key.Trim()[0]);
+        uint vk = ParseKey(key);
+        if (vk == 0) return false;
 
         int id = _nextId++;
         if (!RegisterHotKey(_handle, id, mods, vk))
@@ -72,6 +72,43 @@ public sealed class HotkeyService : IDisposable
 
         _handlers[id] = handler;
         return true;
+    }
+
+    /// <summary>
+    /// Acepta una letra o numero ("I", "5") y tambien teclas con nombre
+    /// ("PrintScreen", "F9", "Pause"...). Las teclas con nombre permiten un
+    /// atajo de UNA sola tecla, sin modificadores: en una sala de monitoreo, a
+    /// oscuras y con una persecucion en pantalla, buscar Ctrl+Shift+I con la
+    /// vista puesta en las camaras cuesta segundos que no siempre hay.
+    /// </summary>
+    private static uint ParseKey(string key)
+    {
+        var name = (key ?? "").Trim();
+        if (name.Length == 0) return 0;
+
+        switch (name.ToUpperInvariant())
+        {
+            case "PRINTSCREEN" or "PRTSC" or "IMPRPANT": return 0x2C; // VK_SNAPSHOT
+            case "PAUSE" or "BREAK": return 0x13;
+            case "SCROLLLOCK": return 0x91;
+            case "INSERT" or "INS": return 0x2D;
+            case "HOME": return 0x24;
+            case "END": return 0x23;
+            case "PAGEUP": return 0x21;
+            case "PAGEDOWN": return 0x22;
+        }
+
+        // F1 a F12
+        if ((name[0] == 'F' || name[0] == 'f') && name.Length is 2 or 3
+            && int.TryParse(name.AsSpan(1), out int number)
+            && number is >= 1 and <= 12)
+        {
+            return (uint)(0x70 + number - 1);
+        }
+
+        if (name.Length == 1) return char.ToUpperInvariant(name[0]);
+
+        return 0;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

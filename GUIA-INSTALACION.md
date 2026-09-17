@@ -119,6 +119,27 @@ En "Mis capturas de hoy", cada evidencia tiene un punto de color:
 | `stationName` | Nombre legible, por ejemplo `Mesa 1`. Es lo que ve el agente en el celular |
 | `retentionHours` | Horas que las capturas se quedan en el PC **después de subirse** |
 | `hotkeyKey` / `hotkeyVideoKey` | Las teclas de los atajos, si chocan con otro programa |
+
+### Atajo de una sola tecla
+
+En una sala de monitoreo buscar `Ctrl+Shift+I` a oscuras cuesta segundos. Se
+puede dejar el atajo en **una sola tecla**: se vacia `hotkeyModifiers` y se pone
+el nombre de la tecla.
+
+```json
+"hotkeyModifiers": "",
+"hotkeyKey": "PrintScreen",
+"hotkeyVideoKey": "F9",
+```
+
+Nombres admitidos: `PrintScreen`, `Pause`, `ScrollLock`, `Insert`, `Home`,
+`End`, `PageUp`, `PageDown`, `F1` a `F12`, o una letra o numero sueltos.
+
+`PrintScreen` es la mejor candidata: una sola tecla, grande, en el mismo sitio
+en todos los teclados y que ya significa "capturar pantalla". En Windows 11 hay
+que apagar antes *Configuracion > Accesibilidad > Teclado > Usar el boton Impr
+Pant para abrir la captura de pantalla*, o el sistema se queda con la tecla y el
+programa avisa "Atajo no disponible" al arrancar.
 | `videoMaxSeconds` | Corte automático de la grabación |
 | `videoFps` | 15 va bien para cámaras. Subirlo engorda el archivo sin ganar mucho |
 
