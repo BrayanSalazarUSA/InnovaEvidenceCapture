@@ -40,19 +40,44 @@ public sealed class CaptureStore
 
     public CaptureRecord SaveImage(Bitmap bitmap, CaptureRecord record)
     {
-        var target = PrepareTarget(record, "png");
+        bool jpeg = !string.Equals(_cfg.ImageFormat, "png", StringComparison.OrdinalIgnoreCase);
+        var target = PrepareTarget(record, jpeg ? "jpg" : "png");
 
-        bitmap.Save(target, ImageFormat.Png);
+        if (jpeg) SaveJpeg(bitmap, target, _cfg.JpegQuality);
+        else bitmap.Save(target, ImageFormat.Png);
 
         record.Width = bitmap.Width;
         record.Height = bitmap.Height;
         record.SizeBytes = new FileInfo(target).Length;
         record.CaptureType = "IMAGE";
-        record.MimeType = "image/png";
+        record.MimeType = jpeg ? "image/jpeg" : "image/png";
 
         Update(record);
         LogService.Info($"Captura guardada: {record.FileName} ({record.Width}x{record.Height}, {Kb(record.SizeBytes)})");
         return record;
+    }
+
+    /// <summary>
+    /// Guarda en JPEG con la calidad pedida. El Save() normal de .NET usa
+    /// calidad 75 por defecto, que en texto de camaras (placas, horas) ya se
+    /// nota, por eso hay que pasarle el parametro a mano.
+    /// </summary>
+    private static void SaveJpeg(Bitmap bitmap, string path, int quality)
+    {
+        var codec = ImageCodecInfo.GetImageEncoders()
+            .FirstOrDefault(c => c.MimeType == "image/jpeg");
+
+        if (codec is null)
+        {
+            bitmap.Save(path, ImageFormat.Jpeg);
+            return;
+        }
+
+        using var parameters = new EncoderParameters(1);
+        parameters.Param[0] = new EncoderParameter(
+            System.Drawing.Imaging.Encoder.Quality, (long)Math.Clamp(quality, 60, 100));
+
+        bitmap.Save(path, codec, parameters);
     }
 
     /// <summary>Mueve el clip recien grabado a la carpeta del dia.</summary>
@@ -138,7 +163,7 @@ public sealed class CaptureStore
             foreach (var file in Directory.EnumerateFiles(folder))
             {
                 var extension = Path.GetExtension(file).ToLowerInvariant();
-                if (extension != ".png" && extension != ".mp4") continue;
+                if (extension != ".png" && extension != ".jpg" && extension != ".mp4") continue;
 
                 var record = LoadOne(file);
                 if (record is not null) results.Add(record);
@@ -186,7 +211,11 @@ public sealed class CaptureStore
             StationCode = _cfg.StationCode,
             StationName = _cfg.StationName,
             CaptureType = isVideo ? "VIDEO" : "IMAGE",
-            MimeType = isVideo ? "video/mp4" : "image/png",
+            MimeType = isVideo
+                ? "video/mp4"
+                : info.Extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+                    ? "image/png"
+                    : "image/jpeg",
             Uploaded = false,
             LastError = "Sin registro de estado"
         };

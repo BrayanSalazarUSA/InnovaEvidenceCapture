@@ -256,7 +256,7 @@ public partial class App : System.Windows.Application
         // Las marcas se queman solo si el agente confirmo.
         preview.ApplyAnnotations();
 
-        var record = NewRecord("IMAGE", "image/png");
+        var record = NewRecord("IMAGE", "image/jpeg");
         _store.SaveImage(bitmap, record);
 
         Notice("Evidencia guardada");

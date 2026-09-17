@@ -16,6 +16,16 @@ public class AppConfig
     [JsonPropertyName("hotkeyKey")] public string HotkeyKey { get; set; } = "I";
     /// <summary>Atajo que va directo a grabar, sin pasar por la barra de eleccion.</summary>
     [JsonPropertyName("hotkeyVideoKey")] public string HotkeyVideoKey { get; set; } = "V";
+    /// <summary>
+    /// "jpeg" o "png". Una captura de camara en PNG pesa unos 4 MB; el mismo
+    /// fotograma en JPEG de calidad 92 pesa unos 400 KB y a ojo es identico.
+    /// Con los escaneos de cada hora esa diferencia es el 90% del bucket.
+    /// </summary>
+    [JsonPropertyName("imageFormat")] public string ImageFormat { get; set; } = "jpeg";
+
+    /// <summary>Calidad del JPEG, de 1 a 100. Por debajo de 85 ya se nota.</summary>
+    [JsonPropertyName("jpegQuality")] public int JpegQuality { get; set; } = 92;
+
     [JsonPropertyName("videoMaxSeconds")] public int VideoMaxSeconds { get; set; } = 60;
     [JsonPropertyName("videoFps")] public int VideoFps { get; set; } = 15;
 
