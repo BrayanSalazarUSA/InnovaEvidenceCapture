@@ -2,7 +2,7 @@
 
 Captura de evidencia en alta calidad desde los PCs de monitoreo de Innova.
 
-El agente ve un evento en iVMS, SmartPSS o Axis, presiona `Ctrl + Shift + I`,
+El agente ve un evento en iVMS, SmartPSS o Axis, presiona `F8`,
 selecciona la región de la pantalla y confirma. La evidencia se guarda en el PC,
 se sube al backend y queda disponible en la app móvil para adjuntarla a un
 pending report — sin fotos de celular a los monitores.

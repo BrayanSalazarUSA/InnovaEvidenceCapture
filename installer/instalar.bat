@@ -94,8 +94,8 @@ echo   Instalacion terminada.
 echo  ============================================
 echo.
 echo   - El icono aparece junto al reloj. Un clic abre el menu.
-echo   - Ctrl + Shift + I  capturar (elige foto o video al soltar)
-echo   - Ctrl + Shift + V  ir directo a grabar video
+echo   - F8  capturar (elige foto o video al soltar)
+echo   - F9  ir directo a grabar video
 echo   - Los atajos y el codigo de la estacion se cambian desde
 echo     el menu del icono, en "Ajustes...". No hay que editar archivos.
 echo   - Las evidencias quedan en: %EVID%\captures

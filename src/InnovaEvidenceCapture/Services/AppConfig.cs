@@ -12,10 +12,22 @@ public class AppConfig
     [JsonPropertyName("captureRoot")] public string CaptureRoot { get; set; } = @"C:\InnovaEvidence";
     [JsonPropertyName("retentionHours")] public int RetentionHours { get; set; } = 48;
     [JsonPropertyName("uploadEnabled")] public bool UploadEnabled { get; set; } = true;
-    [JsonPropertyName("hotkeyModifiers")] public string HotkeyModifiers { get; set; } = "Ctrl+Shift";
-    [JsonPropertyName("hotkeyKey")] public string HotkeyKey { get; set; } = "I";
+    /// <summary>
+    /// Vacio a proposito: el atajo es una sola tecla. Buscar Ctrl+Shift+I a
+    /// oscuras, con una persecucion en pantalla, cuesta segundos que no hay.
+    /// </summary>
+    [JsonPropertyName("hotkeyModifiers")] public string HotkeyModifiers { get; set; } = "";
+
+    /// <summary>
+    /// F8 y F9 estan en todos los teclados y no los usa nada. Se descartaron
+    /// F1 (ayuda), F5 (refrescar) y F11 (pantalla completa): un atajo global se
+    /// traga la tecla en TODO el sistema, y el agente dejaria de poder
+    /// refrescar el navegador o el cliente de camaras. Impr Pant era la otra
+    /// candidata pero no esta en todos los teclados.
+    /// </summary>
+    [JsonPropertyName("hotkeyKey")] public string HotkeyKey { get; set; } = "F8";
     /// <summary>Atajo que va directo a grabar, sin pasar por la barra de eleccion.</summary>
-    [JsonPropertyName("hotkeyVideoKey")] public string HotkeyVideoKey { get; set; } = "V";
+    [JsonPropertyName("hotkeyVideoKey")] public string HotkeyVideoKey { get; set; } = "F9";
     /// <summary>
     /// "jpeg" o "png". Una captura de camara en PNG pesa unos 4 MB; el mismo
     /// fotograma en JPEG de calidad 92 pesa unos 400 KB y a ojo es identico.
@@ -37,6 +49,13 @@ public class AppConfig
     /// los valores de fabrica que reparte el instalador, y este de ProgramData
     /// los pisa.
     /// </summary>
+    /// <summary>"F8" o "Ctrl+Shift+I", segun tenga modificadores o no.</summary>
+    [JsonIgnore] public string HotkeyLabel => Label(HotkeyKey);
+    [JsonIgnore] public string HotkeyVideoLabel => Label(HotkeyVideoKey);
+
+    private string Label(string key) =>
+        string.IsNullOrWhiteSpace(HotkeyModifiers) ? key : $"{HotkeyModifiers}+{key}";
+
     public static string UserConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "Innova Evidence Capture",

@@ -139,7 +139,7 @@ public sealed class CapturesWindow : Window
         _empty.TextWrapping = TextWrapping.Wrap;
         _empty.Margin = new Thickness(40, 70, 40, 0);
         _empty.Text = "Todavia no has capturado nada hoy.\n\n" +
-                      $"Presiona {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} frente a las camaras " +
+                      $"Presiona {_cfg.HotkeyLabel} frente a las camaras " +
                       "y selecciona la region que quieres guardar.";
         _empty.Visibility = Visibility.Collapsed;
 

@@ -57,8 +57,8 @@ deja arrancando solo en cada inicio de sesión. **Al reinstalar no se pisa
 
 | Acción | Cómo |
 |---|---|
-| Capturar | `Ctrl + Shift + I`, arrastrar la región, y al soltar elegir **Foto** o **Grabar** |
-| Grabar directo | `Ctrl + Shift + V` — se salta la elección y empieza a grabar al soltar |
+| Capturar | `F8`, arrastrar la región, y al soltar elegir **Foto** o **Grabar** |
+| Grabar directo | `F9` — se salta la elección y empieza a grabar al soltar |
 | Ver lo capturado | Menú del ícono → **Mis capturas de hoy** |
 
 Atajos dentro del overlay: `Enter` toma la foto, `V` graba, `Esc` cancela.
@@ -104,9 +104,9 @@ En "Mis capturas de hoy", cada evidencia tiene un punto de color:
   "captureRoot": "C:\\InnovaEvidence",
   "retentionHours": 48,
   "uploadEnabled": true,
-  "hotkeyModifiers": "Ctrl+Shift",
-  "hotkeyKey": "I",
-  "hotkeyVideoKey": "V",
+  "hotkeyModifiers": "",
+  "hotkeyKey": "F8",
+  "hotkeyVideoKey": "F9",
   "videoMaxSeconds": 60,
   "videoFps": 15
 }
@@ -133,26 +133,31 @@ no en Program Files, porque el agente no tiene permiso de escritura ahi. El
 
 Los atajos se vuelven a registrar al guardar, sin reiniciar el programa.
 
-### Atajo de una sola tecla
+### Por que F8 y F9
 
-En una sala de monitoreo buscar `Ctrl+Shift+I` a oscuras cuesta segundos. Se
-puede dejar el atajo en **una sola tecla**: se vacia `hotkeyModifiers` y se pone
-el nombre de la tecla.
+En una sala de monitoreo buscar `Ctrl+Shift+I` a oscuras cuesta segundos que en
+un seguimiento policial no hay. Por eso el atajo es **una sola tecla**.
 
-```json
-"hotkeyModifiers": "",
-"hotkeyKey": "PrintScreen",
-"hotkeyVideoKey": "F9",
-```
+Un atajo global se traga la tecla en **todo el sistema**: la aplicacion que
+tenga el foco deja de recibirla. Por eso quedaron descartadas:
 
-Nombres admitidos: `PrintScreen`, `Pause`, `ScrollLock`, `Insert`, `Home`,
-`End`, `PageUp`, `PageDown`, `F1` a `F12`, o una letra o numero sueltos.
+| Tecla | Por que no |
+|---|---|
+| `F1` | Ayuda, en casi todo |
+| `F5` | Refrescar: el agente dejaria de poder refrescar el navegador y el cliente de camaras |
+| `F11` | Pantalla completa |
+| `F12` | Herramientas de desarrollo del navegador |
+| `Impr Pant` | Buena candidata, pero no esta en todos los teclados y en Windows 11 se la queda la herramienta de recortes |
 
-`PrintScreen` es la mejor candidata: una sola tecla, grande, en el mismo sitio
-en todos los teclados y que ya significa "capturar pantalla". En Windows 11 hay
-que apagar antes *Configuracion > Accesibilidad > Teclado > Usar el boton Impr
-Pant para abrir la captura de pantalla*, o el sistema se queda con la tecla y el
-programa avisa "Atajo no disponible" al arrancar.
+`F8` y `F9` estan en todos los teclados, se encuentran sin mirar y no los usa
+nada de lo que el agente tiene abierto.
+
+Se pueden cambiar desde **Ajustes...**, o en el archivo. Nombres admitidos:
+`F1` a `F12`, `PrintScreen`, `Pause`, `ScrollLock`, `Insert`, `Home`, `End`,
+`PageUp`, `PageDown`, o una letra o numero sueltos.
+
+Si otro programa ya usa la tecla, al arrancar aparece "Atajo no disponible" y
+basta con elegir otra en Ajustes.
 | `videoMaxSeconds` | Corte automático de la grabación |
 | `videoFps` | 15 va bien para cámaras. Subirlo engorda el archivo sin ganar mucho |
 

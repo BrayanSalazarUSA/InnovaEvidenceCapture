@@ -79,14 +79,14 @@ public partial class App : System.Windows.Application
 
         if (photo)
         {
-            LogService.Info($"Atajos: {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} (capturar), " +
-                            $"{_cfg.HotkeyModifiers}+{_cfg.HotkeyVideoKey} (grabar: {(video ? "ok" : "ocupado")})");
-            Notice($"Listo · {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} para capturar · {_cfg.StationCode}");
+            LogService.Info($"Atajos: {_cfg.HotkeyLabel} (capturar), " +
+                            $"{_cfg.HotkeyVideoLabel} (grabar: {(video ? "ok" : "ocupado")})");
+            Notice($"Listo · {_cfg.HotkeyLabel} para capturar · {_cfg.StationCode}");
         }
         else
         {
-            LogService.Warn($"El atajo {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey} ya lo usa otro programa.");
-            Notice($"Otro programa usa {_cfg.HotkeyModifiers}+{_cfg.HotkeyKey}. Usa el menu del icono.",
+            LogService.Warn($"El atajo {_cfg.HotkeyLabel} ya lo usa otro programa.");
+            Notice($"Otro programa usa {_cfg.HotkeyLabel}. Usa el menu del icono.",
                 isError: true);
         }
     }
@@ -122,9 +122,9 @@ public partial class App : System.Windows.Application
         var menu = new WinForms.ContextMenuStrip();
         menu.Items.Add($"Estacion: {_cfg.StationCode}").Enabled = false;
         menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add($"Capturar  ({_cfg.HotkeyModifiers}+{_cfg.HotkeyKey})", null,
+        menu.Items.Add($"Capturar  ({_cfg.HotkeyLabel})", null,
             (_, _) => Dispatcher.Invoke(() => OnCapture(null)));
-        menu.Items.Add($"Grabar video  ({_cfg.HotkeyModifiers}+{_cfg.HotkeyVideoKey})", null,
+        menu.Items.Add($"Grabar video  ({_cfg.HotkeyVideoLabel})", null,
             (_, _) => Dispatcher.Invoke(() => OnCapture(CaptureKind.Video)));
         menu.Items.Add("Mis capturas de hoy", null, (_, _) => Dispatcher.Invoke(ShowCaptures));
         menu.Items.Add(new WinForms.ToolStripSeparator());
