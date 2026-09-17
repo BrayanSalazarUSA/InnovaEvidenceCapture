@@ -13,7 +13,7 @@ namespace InnovaEvidenceCapture;
 
 public partial class App : System.Windows.Application
 {
-    public const string Version = "0.4.0";
+    public const string Version = "0.4.1";
 
     private static Mutex? _singleInstance;
 

@@ -165,6 +165,15 @@ public sealed class CaptureStore
                 var extension = Path.GetExtension(file).ToLowerInvariant();
                 if (extension != ".png" && extension != ".jpg" && extension != ".mp4") continue;
 
+                // La miniatura del video vive al lado como "video.mp4.thumb.jpg".
+                // Sin esto se cuela como si fuera una foto que el agente tomo, y
+                // la cola la sube: por cada video aparecia una imagen fantasma.
+                if (file.EndsWith(".thumb.jpg", StringComparison.OrdinalIgnoreCase)) continue;
+
+                // Lo que acompana a una captura (miniatura, sidecar) va oculto.
+                // Una captura de verdad nunca lo esta.
+                if (IsHidden(file)) continue;
+
                 var record = LoadOne(file);
                 if (record is not null) results.Add(record);
             }
@@ -219,6 +228,12 @@ public sealed class CaptureStore
             Uploaded = false,
             LastError = "Sin registro de estado"
         };
+    }
+
+    private static bool IsHidden(string path)
+    {
+        try { return (File.GetAttributes(path) & FileAttributes.Hidden) != 0; }
+        catch { return false; }
     }
 
     // ------------------------------------------------------------- limpieza
