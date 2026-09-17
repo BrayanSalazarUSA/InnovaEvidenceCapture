@@ -30,7 +30,12 @@ public sealed class PreviewWindow : Window
     public bool Confirmed { get; private set; }
 
     private readonly System.Drawing.Bitmap? _bitmap;
-    private readonly double _scale = 1;
+    private double _scale = 1;
+
+    // Tamano real del medio en pixeles. En la foto es el bitmap; en el video es
+    // la miniatura, que ffmpeg saca del primer fotograma a tamano completo.
+    private int _mediaWidth;
+    private int _mediaHeight;
     private readonly Canvas _overlay = new();
     private readonly List<Annotation> _annotations = new();
     private readonly List<System.Windows.Controls.Button> _toolButtons = new();
@@ -55,6 +60,8 @@ public sealed class PreviewWindow : Window
     public PreviewWindow(System.Drawing.Bitmap bitmap, bool looksBlank)
     {
         _bitmap = bitmap;
+        _mediaWidth = bitmap.Width;
+        _mediaHeight = bitmap.Height;
 
         const double maxWidth = 1120;
         const double maxHeight = 600;
@@ -72,7 +79,158 @@ public sealed class PreviewWindow : Window
             "La captura salio en negro. El cliente de camaras puede estar usando aceleracion por hardware. " +
             "Avisa a soporte antes de usar esta evidencia.");
 
-        // Herramientas de anotacion
+        var tools = BuildToolsPanel();
+        Grid.SetRow(tools, 1);
+        root.Children.Add(tools);
+
+        var frame = BuildAnnotatedStage(ToImageSource(bitmap), displayWidth, displayHeight);
+        Grid.SetRow(frame, 2);
+        root.Children.Add(frame);
+
+        AddFooter(root, $"{bitmap.Width} × {bitmap.Height} px", null);
+
+        Content = root;
+    }
+
+    // =====================================================================
+    // VIDEO
+    // =====================================================================
+    public PreviewWindow(string videoPath, string? thumbnailPath, int seconds, long sizeBytes)
+    {
+        // La miniatura es el primer fotograma a tamano completo, asi que sirve
+        // de lienzo: lo que se marca aqui cae en los mismos pixeles del video.
+        BitmapImage? poster = null;
+        if (thumbnailPath is not null && File.Exists(thumbnailPath))
+        {
+            try { poster = FromFile(thumbnailPath); } catch { poster = null; }
+        }
+
+        double displayWidth = 640;
+        double displayHeight = 360;
+
+        if (poster is not null)
+        {
+            _mediaWidth = poster.PixelWidth;
+            _mediaHeight = poster.PixelHeight;
+
+            const double maxWidth = 900;
+            const double maxHeight = 420;
+            _scale = Math.Min(Math.Min(maxWidth / _mediaWidth, maxHeight / _mediaHeight), 1.0);
+
+            displayWidth = Math.Round(_mediaWidth * _scale);
+            displayHeight = Math.Round(_mediaHeight * _scale);
+        }
+
+        Setup("Innova Evidence Capture — confirmar grabacion",
+              displayWidth + 56, displayHeight + (poster is not null ? 265 : 240));
+
+        var root = NewRoot();
+        AddWarning(root, 0, false, "");
+
+        if (poster is not null)
+        {
+            var tools = BuildToolsPanel();
+            Grid.SetRow(tools, 1);
+            root.Children.Add(tools);
+
+            var stage = BuildAnnotatedStage(poster, displayWidth, displayHeight);
+            Grid.SetRow(stage, 2);
+            root.Children.Add(stage);
+        }
+        else
+        {
+            var badge = new Border
+            {
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0x22, 0x22)),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 0, 10),
+                Child = new TextBlock
+                {
+                    Text = $"⏺  Grabacion de {seconds} segundos",
+                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE8, 0x9A, 0x9A)),
+                    FontSize = 12.5
+                }
+            };
+            Grid.SetRow(badge, 1);
+            root.Children.Add(badge);
+
+            var preview = new Border
+            {
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x0E, 0x10, 0x13)),
+                BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x3D, 0x44)),
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text = "▶",
+                    FontSize = 54,
+                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5A, 0x60, 0x6A)),
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center
+                }
+            };
+            Grid.SetRow(preview, 2);
+            root.Children.Add(preview);
+        }
+
+        var play = SmallButton("Reproducir");
+        play.Click += (_, _) =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(videoPath) { UseShellExecute = true });
+            }
+            catch { }
+        };
+
+        AddFooter(root, $"{seconds} s  ·  {FormatSize(sizeBytes)}", play);
+
+        Content = root;
+    }
+
+    /// <summary>Hay algo marcado que valga la pena quemar en el archivo.</summary>
+    public bool HasAnnotations => _annotations.Count > 0;
+
+    /// <summary>
+    /// Escribe las marcas en un PNG transparente del tamano exacto del video,
+    /// para que ffmpeg lo superponga. Devuelve false si no hay nada que marcar
+    /// o si algo fallo: en ese caso el video se guarda sin marcas, nunca se
+    /// pierde la grabacion por culpa de un dibujo.
+    /// </summary>
+    public bool TrySaveOverlayPng(string path)
+    {
+        if (_annotations.Count == 0 || _mediaWidth <= 0 || _mediaHeight <= 0) return false;
+
+        try
+        {
+            using var canvas = new System.Drawing.Bitmap(
+                _mediaWidth, _mediaHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+            using (var graphics = System.Drawing.Graphics.FromImage(canvas))
+            {
+                graphics.Clear(System.Drawing.Color.Transparent);
+                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                DrawAnnotations(graphics, _mediaWidth);
+            }
+
+            canvas.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            return File.Exists(path);
+        }
+        catch (Exception ex)
+        {
+            Services.LogService.Error("No se pudo preparar la capa de marcas del video", ex);
+            return false;
+        }
+    }
+
+    // =====================================================================
+    // Estructura comun
+    // =====================================================================
+
+    /// <summary>Fila de herramientas de anotacion, igual para foto y video.</summary>
+    private StackPanel BuildToolsPanel()
+    {
         var tools = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
@@ -94,21 +252,33 @@ public sealed class PreviewWindow : Window
         tools.Children.Add(ToolButton("◯  Círculo", Tool.Ellipse));
 
         var undo = SmallButton("Deshacer");
-        undo.Click += (_, _) => { if (_annotations.Count > 0) { _annotations.RemoveAt(_annotations.Count - 1); Redraw(); } };
+        undo.Click += (_, _) =>
+        {
+            if (_annotations.Count > 0)
+            {
+                _annotations.RemoveAt(_annotations.Count - 1);
+                Redraw();
+            }
+        };
         tools.Children.Add(undo);
 
         var clear = SmallButton("Limpiar");
         clear.Click += (_, _) => { _annotations.Clear(); Redraw(); };
         tools.Children.Add(clear);
 
-        Grid.SetRow(tools, 1);
-        root.Children.Add(tools);
+        return tools;
+    }
 
-        // Imagen + capa de anotacion, exactamente del mismo tamano
+    /// <summary>
+    /// Imagen y capa de dibujo exactamente del mismo tamano, para que las
+    /// coordenadas del mouse se puedan llevar a pixeles del archivo.
+    /// </summary>
+    private Border BuildAnnotatedStage(ImageSource source, double displayWidth, double displayHeight)
+    {
         var stage = new Grid { Width = displayWidth, Height = displayHeight };
         stage.Children.Add(new System.Windows.Controls.Image
         {
-            Source = ToImageSource(bitmap),
+            Source = source,
             Stretch = Stretch.Fill
         });
 
@@ -119,97 +289,15 @@ public sealed class PreviewWindow : Window
         _overlay.MouseLeftButtonUp += OnDrawUp;
         stage.Children.Add(_overlay);
 
-        var frame = new Border
+        return new Border
         {
             BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x3D, 0x44)),
             BorderThickness = new Thickness(1),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
             Child = stage
         };
-        Grid.SetRow(frame, 2);
-        root.Children.Add(frame);
-
-        AddFooter(root, $"{bitmap.Width} × {bitmap.Height} px", null);
-
-        Content = root;
     }
 
-    // =====================================================================
-    // VIDEO
-    // =====================================================================
-    public PreviewWindow(string videoPath, string? thumbnailPath, int seconds, long sizeBytes)
-    {
-        Setup("Innova Evidence Capture — confirmar grabacion", 720, 600);
-
-        var root = NewRoot();
-        AddWarning(root, 0, false, "");
-
-        var badge = new Border
-        {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0x22, 0x22)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 5, 10, 5),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = new TextBlock
-            {
-                Text = $"⏺  Grabacion de {seconds} segundos  ·  lista para reproducir sin conversion",
-                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE8, 0x9A, 0x9A)),
-                FontSize = 12.5
-            }
-        };
-        Grid.SetRow(badge, 1);
-        root.Children.Add(badge);
-
-        var preview = new Border
-        {
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x0E, 0x10, 0x13)),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x3D, 0x44)),
-            BorderThickness = new Thickness(1)
-        };
-
-        if (thumbnailPath is not null && File.Exists(thumbnailPath))
-        {
-            preview.Child = new System.Windows.Controls.Image
-            {
-                Source = FromFile(thumbnailPath),
-                Stretch = Stretch.Uniform,
-                StretchDirection = StretchDirection.DownOnly
-            };
-        }
-        else
-        {
-            preview.Child = new TextBlock
-            {
-                Text = "▶",
-                FontSize = 54,
-                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5A, 0x60, 0x6A)),
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
-                VerticalAlignment = System.Windows.VerticalAlignment.Center
-            };
-        }
-
-        Grid.SetRow(preview, 2);
-        root.Children.Add(preview);
-
-        var play = SmallButton("Reproducir");
-        play.Click += (_, _) =>
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo(videoPath) { UseShellExecute = true });
-            }
-            catch { }
-        };
-
-        AddFooter(root, $"{seconds} s  ·  {FormatSize(sizeBytes)}", play);
-
-        Content = root;
-    }
-
-    // =====================================================================
-    // Estructura comun
-    // =====================================================================
 
     private void Setup(string title, double width, double height)
     {
@@ -598,43 +686,53 @@ public sealed class PreviewWindow : Window
             using var graphics = System.Drawing.Graphics.FromImage(_bitmap);
             graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-            float thickness = Math.Max(3f, _bitmap.Width / 350f);
-            var color = System.Drawing.Color.FromArgb(MarkColor.R, MarkColor.G, MarkColor.B);
-
-            foreach (var annotation in _annotations)
-            {
-                using var pen = new System.Drawing.Pen(color, thickness);
-
-                float ax = (float)(annotation.A.X / _scale);
-                float ay = (float)(annotation.A.Y / _scale);
-                float bx = (float)(annotation.B.X / _scale);
-                float by = (float)(annotation.B.Y / _scale);
-
-                float left = Math.Min(ax, bx);
-                float top = Math.Min(ay, by);
-                float width = Math.Abs(bx - ax);
-                float height = Math.Abs(by - ay);
-
-                switch (annotation.Tool)
-                {
-                    case Tool.Rect:
-                        graphics.DrawRectangle(pen, left, top, width, height);
-                        break;
-                    case Tool.Ellipse:
-                        graphics.DrawEllipse(pen, left, top, width, height);
-                        break;
-                    case Tool.Arrow:
-                        pen.CustomEndCap = new System.Drawing.Drawing2D.AdjustableArrowCap(4, 5);
-                        graphics.DrawLine(pen, ax, ay, bx, by);
-                        break;
-                }
-            }
+            DrawAnnotations(graphics, _bitmap.Width);
 
             Services.LogService.Info($"Anotaciones aplicadas: {_annotations.Count}");
         }
         catch (Exception ex)
         {
             Services.LogService.Error("No se pudieron aplicar las anotaciones", ex);
+        }
+    }
+
+    /// <summary>
+    /// Pasa las marcas de coordenadas de pantalla a pixeles del archivo. El
+    /// grosor se calcula sobre el ancho real para que una flecha se vea igual
+    /// de gruesa en una camara de 720p que en una de 4K.
+    /// </summary>
+    private void DrawAnnotations(System.Drawing.Graphics graphics, int referenceWidth)
+    {
+        float thickness = Math.Max(3f, referenceWidth / 350f);
+        var color = System.Drawing.Color.FromArgb(MarkColor.R, MarkColor.G, MarkColor.B);
+
+        foreach (var annotation in _annotations)
+        {
+            using var pen = new System.Drawing.Pen(color, thickness);
+
+            float ax = (float)(annotation.A.X / _scale);
+            float ay = (float)(annotation.A.Y / _scale);
+            float bx = (float)(annotation.B.X / _scale);
+            float by = (float)(annotation.B.Y / _scale);
+
+            float left = Math.Min(ax, bx);
+            float top = Math.Min(ay, by);
+            float width = Math.Abs(bx - ax);
+            float height = Math.Abs(by - ay);
+
+            switch (annotation.Tool)
+            {
+                case Tool.Rect:
+                    graphics.DrawRectangle(pen, left, top, width, height);
+                    break;
+                case Tool.Ellipse:
+                    graphics.DrawEllipse(pen, left, top, width, height);
+                    break;
+                case Tool.Arrow:
+                    pen.CustomEndCap = new System.Drawing.Drawing2D.AdjustableArrowCap(4, 5);
+                    graphics.DrawLine(pen, ax, ay, bx, by);
+                    break;
+            }
         }
     }
 

@@ -13,7 +13,7 @@ namespace InnovaEvidenceCapture;
 
 public partial class App : System.Windows.Application
 {
-    public const string Version = "0.3.1";
+    public const string Version = "0.4.0";
 
     private static Mutex? _singleInstance;
 
@@ -312,8 +312,40 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        var videoPath = result.VideoPath;
+        var thumbnailPath = result.ThumbnailPath;
+
+        // Las marcas se queman en el video antes de guardarlo. Recodificar toma
+        // unos segundos, por eso solo pasa si el agente dibujo algo.
+        if (preview.HasAnnotations)
+        {
+            var overlay = Path.Combine(_store.TempFolder, $"marcas_{record.ClientCaptureId}.png");
+
+            if (preview.TrySaveOverlayPng(overlay))
+            {
+                Notice("Marcando el video…");
+
+                var burned = await _recorder.BurnOverlayAsync(videoPath, overlay);
+
+                if (burned.Ok)
+                {
+                    TryDelete(videoPath);
+                    TryDelete(thumbnailPath);
+                    videoPath = burned.VideoPath;
+                    thumbnailPath = burned.ThumbnailPath;
+                }
+                else
+                {
+                    // Se guarda igual, sin marcas: la grabacion no se pierde.
+                    Notice("El video se guardo sin las marcas", isError: true);
+                }
+
+                TryDelete(overlay);
+            }
+        }
+
         record.DurationSeconds = result.DurationSeconds;
-        _store.SaveVideo(result.VideoPath, result.ThumbnailPath, record);
+        _store.SaveVideo(videoPath, thumbnailPath, record);
 
         Notice($"Grabacion guardada · {result.DurationSeconds} s");
         _capturesWindow?.Refresh();
