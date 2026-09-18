@@ -74,9 +74,17 @@ Si se descarta la captura, la imagen nunca se modifica.
 
 ### Grabar video
 
-Al elegir **Grabar** aparece una barra arriba con el cronómetro y el botón
+Al elegir **Grabar** aparece una barra con el cronómetro y el botón
 **Detener y guardar**. Corta sola al llegar al límite (60 segundos por defecto).
 La barra no roba el foco, así que se puede seguir moviendo iVMS mientras graba.
+Volver a tocar `F9` también detiene y guarda, sin buscar la barra con el mouse.
+
+**La barra no sale dentro del video.** Windows la oculta de cualquier captura de
+pantalla (`WDA_EXCLUDEFROMCAPTURE`, disponible desde Windows 10 versión 2004), y
+además se coloca fuera del rectángulo que se está grabando siempre que haya
+espacio. Si un PC tuviera un Windows más viejo *y* se grabara la pantalla
+completa, la barra sí quedaría en el video: queda anotado en el log y se evita
+seleccionando una región en vez de toda la pantalla.
 
 El video se produce en H.264 listo para reproducir, así que **no pasa por ningún
 proceso de conversión** — a diferencia de los videos exportados del playback de

@@ -13,7 +13,7 @@ namespace InnovaEvidenceCapture;
 
 public partial class App : System.Windows.Application
 {
-    public const string Version = "0.4.1";
+    public const string Version = "0.5.0";
 
     private static Mutex? _singleInstance;
 
@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
     private HotkeyService? _hotkeys;
     private WinForms.NotifyIcon? _tray;
     private CapturesWindow? _capturesWindow;
+    private CancellationTokenSource? _recording;
     private bool _busy;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -233,6 +234,14 @@ public partial class App : System.Windows.Application
 
     private async void OnCapture(CaptureKind? directMode)
     {
+        // Si ya se esta grabando, volver a tocar el atajo de video detiene y
+        // guarda. Asi el agente ni tiene que buscar la barra con el mouse.
+        if (_recording is { IsCancellationRequested: false })
+        {
+            if (directMode == CaptureKind.Video) _recording.Cancel();
+            return;
+        }
+
         if (_busy) return;
         _busy = true;
 
@@ -304,10 +313,18 @@ public partial class App : System.Windows.Application
         var record = NewRecord("VIDEO", "video/mp4");
         var tempPath = Path.Combine(_store.TempFolder, $"rec_{record.ClientCaptureId}.mp4");
 
-        var bar = new RecordingBar(_cfg.VideoMaxSeconds);
+        var bar = new RecordingBar(_cfg.VideoMaxSeconds, region, _cfg.HotkeyVideoLabel);
         using var stop = new CancellationTokenSource();
         bar.StopRequested += () => stop.Cancel();
         bar.Show();
+
+        _recording = stop;
+
+        if (!bar.HiddenFromCapture)
+        {
+            LogService.Info("La barra de grabacion no se puede ocultar de la captura: " +
+                            "se coloco fuera del area grabada.");
+        }
 
         RecordingResult result;
         try
@@ -318,6 +335,7 @@ public partial class App : System.Windows.Application
         }
         finally
         {
+            _recording = null;
             bar.Close();
         }
 

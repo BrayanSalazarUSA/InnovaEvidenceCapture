@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using InnovaEvidenceCapture.Services;
+using WinForms = System.Windows.Forms;
 
 namespace InnovaEvidenceCapture.UI;
 
@@ -9,17 +11,29 @@ namespace InnovaEvidenceCapture.UI;
 /// Barra flotante durante la grabacion: punto rojo parpadeando, cronometro y
 /// boton de detener. No roba el foco, para que el agente pueda seguir moviendose
 /// en iVMS mientras graba.
+///
+/// Dos cosas la mantienen fuera del video:
+/// 1) CaptureShield: Windows deja de mostrarla a quien capture la pantalla.
+/// 2) Posicion: igual se coloca fuera del rectangulo que se esta grabando,
+///    por si (1) no esta disponible en ese PC.
 /// </summary>
 public sealed class RecordingBar : Window
 {
     private readonly TextBlock _time = new();
     private readonly int _maxSeconds;
+    private readonly System.Drawing.Rectangle _region;
+
+    /// <summary>true si Windows la esta escondiendo de las capturas.</summary>
+    public bool HiddenFromCapture { get; private set; }
 
     public event Action? StopRequested;
 
-    public RecordingBar(int maxSeconds)
+    /// <param name="region">Rectangulo que se esta grabando, en pixeles.</param>
+    /// <param name="stopHint">Atajo que tambien detiene, para mostrarlo en la barra.</param>
+    public RecordingBar(int maxSeconds, System.Drawing.Rectangle region, string? stopHint = null)
     {
         _maxSeconds = maxSeconds;
+        _region = region;
 
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -75,6 +89,18 @@ public sealed class RecordingBar : Window
         row.Children.Add(_time);
         row.Children.Add(stop);
 
+        if (!string.IsNullOrWhiteSpace(stopHint))
+        {
+            row.Children.Add(new TextBlock
+            {
+                Text = $"o {stopHint}",
+                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9A, 0xA1, 0xAD)),
+                FontSize = 12,
+                Margin = new Thickness(10, 0, 4, 0),
+                VerticalAlignment = System.Windows.VerticalAlignment.Center
+            });
+        }
+
         Content = new Border
         {
             Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1B, 0x1D, 0x21)),
@@ -85,14 +111,65 @@ public sealed class RecordingBar : Window
             Child = row
         };
 
-        Loaded += (_, _) => PlaceTopCenter();
+        SourceInitialized += (_, _) => HiddenFromCapture = CaptureShield.Hide(this);
+        Loaded += (_, _) => Place();
     }
 
-    private void PlaceTopCenter()
+    /// <summary>
+    /// La deja fuera del area grabada si hay espacio: debajo, arriba o al lado.
+    /// Si la grabacion es de toda la pantalla no queda afuera nada, y ahi la
+    /// unica defensa es CaptureShield.
+    /// </summary>
+    private void Place()
     {
-        var work = SystemParameters.WorkArea;
-        Left = work.Left + (work.Width - ActualWidth) / 2;
-        Top = work.Top + 18;
+        double w = ActualWidth;
+        double h = ActualHeight;
+        const double margin = 12;
+
+        var screen = WinForms.SystemInformation.VirtualScreen;
+        double minLeft = screen.Left + margin;
+        double maxLeft = screen.Right - w - margin;
+
+        double centered = Clamp(_region.Left + (_region.Width - w) / 2, minLeft, maxLeft);
+
+        if (_region.Bottom + margin + h <= screen.Bottom)
+        {
+            Left = centered;
+            Top = _region.Bottom + margin;
+            return;
+        }
+
+        if (_region.Top - margin - h >= screen.Top)
+        {
+            Left = centered;
+            Top = _region.Top - margin - h;
+            return;
+        }
+
+        if (_region.Right + margin + w <= screen.Right)
+        {
+            Left = _region.Right + margin;
+            Top = Clamp(_region.Top + margin, screen.Top + margin, screen.Bottom - h - margin);
+            return;
+        }
+
+        if (_region.Left - margin - w >= screen.Left)
+        {
+            Left = _region.Left - margin - w;
+            Top = Clamp(_region.Top + margin, screen.Top + margin, screen.Bottom - h - margin);
+            return;
+        }
+
+        // Se esta grabando todo: encima, pero arriba y al centro del area.
+        Left = centered;
+        Top = _region.Top + margin;
+
+        if (!HiddenFromCapture)
+        {
+            LogService.Warn(
+                "La grabacion cubre toda la pantalla y este Windows no puede ocultar la barra " +
+                "de la captura: va a salir dentro del video. Seleccionar una region mas chica lo evita.");
+        }
     }
 
     public void UpdateElapsed(TimeSpan elapsed)
@@ -100,6 +177,9 @@ public sealed class RecordingBar : Window
         int seconds = Math.Min((int)elapsed.TotalSeconds, _maxSeconds);
         _time.Text = $"Grabando  {Format(seconds)} / {Format(_maxSeconds)}";
     }
+
+    private static double Clamp(double value, double min, double max) =>
+        max < min ? min : Math.Min(Math.Max(value, min), max);
 
     private static string Format(int totalSeconds) =>
         $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";

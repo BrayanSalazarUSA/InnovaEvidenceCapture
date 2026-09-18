@@ -87,6 +87,10 @@ public sealed class Toast : Window
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(isError ? 7 : 2.5) };
         _timer.Tick += (_, _) => FadeOut();
+
+        // Un aviso puede caer justo mientras se esta grabando (por ejemplo si
+        // falla una subida): no tiene por que quedar dentro del video.
+        SourceInitialized += (_, _) => CaptureShield.Hide(this);
     }
 
     /// <summary>
